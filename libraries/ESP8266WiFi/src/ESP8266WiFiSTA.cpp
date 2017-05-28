@@ -37,6 +37,7 @@ extern "C" {
 #include "lwip/err.h"
 #include "lwip/dns.h"
 #include "lwip/init.h" // LWIP_VERSION_
+#include "wpa2_enterprise.h"
 }
 
 #include "debug.h"
@@ -84,6 +85,72 @@ static bool sta_config_equal(const station_config& lhs, const station_config& rh
 // -----------------------------------------------------------------------------------------------------------------------
 
 bool ESP8266WiFiSTAClass::_useStaticIp = false;
+
+wl_status_t ESP8266WiFiSTAClass::beginWPA2Enterprise(const char* ssid, const char *username, const char *passphrase, bool connect) {
+    if(!WiFi.enableSTA(true)) {
+        // enable STA failed
+        return WL_CONNECT_FAILED;
+    }
+
+    if(!ssid || *ssid == 0x00 || strlen(ssid) > 31) {
+        // fail SSID too long or missing!
+        return WL_CONNECT_FAILED;
+    }
+
+    if(!username || *username == 0x00|| strlen(username) > 64) {
+        // fail username too long or missing!
+        return WL_CONNECT_FAILED;
+    }
+
+    if(passphrase && strlen(passphrase) > 64) {
+        // fail passphrase too long!
+        return WL_CONNECT_FAILED;
+    }
+
+    struct station_config conf;
+    strcpy(reinterpret_cast<char*>(conf.ssid), ssid);
+
+    struct station_config current_conf;
+    wifi_station_get_config(&current_conf);
+    if(sta_config_equal(current_conf, conf)) {
+        DEBUGV("sta config unchanged");
+    }
+    else {
+        ETS_UART_INTR_DISABLE();
+
+        if(WiFi._persistent) {
+            // workaround for #1997: make sure the value of ap_number is updated and written to flash
+            // to be removed after SDK update
+            wifi_station_ap_number_set(2);
+            wifi_station_ap_number_set(1);
+
+            wifi_station_set_config(&conf);
+        } else {
+            wifi_station_set_config_current(&conf);
+        }
+
+        ETS_UART_INTR_ENABLE();
+    }
+
+    wifi_station_clear_cert_key();
+    wifi_station_clear_enterprise_ca_cert();
+
+    wifi_station_set_wpa2_enterprise_auth(1);
+    wifi_station_set_enterprise_username((uint8*)username, strlen(username));
+    wifi_station_set_enterprise_password((uint8*)passphrase, strlen(passphrase));
+
+    ETS_UART_INTR_DISABLE();
+    if(connect) {
+        wifi_station_connect();
+    }
+    ETS_UART_INTR_ENABLE();
+
+    if(!_useStaticIp) {
+        wifi_station_dhcpc_start();
+    }
+
+    return status();
+}
 
 /**
  * Start Wifi connection

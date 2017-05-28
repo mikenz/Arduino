@@ -34,7 +34,7 @@ class ESP8266WiFiSTAClass {
         // ----------------------------------------------------------------------------------------------
 
     public:
-
+        wl_status_t beginWPA2Enterprise(const char* ssid, const char *username, const char *passphrase = NULL, bool connect = true);
         wl_status_t begin(const char* ssid, const char *passphrase = NULL, int32_t channel = 0, const uint8_t* bssid = NULL, bool connect = true);
         wl_status_t begin(char* ssid, char *passphrase = NULL, int32_t channel = 0, const uint8_t* bssid = NULL, bool connect = true);
         wl_status_t begin();
